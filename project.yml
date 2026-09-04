@@ -20,14 +20,8 @@ targets:
     type: application
     platform: iOS
     sources:
-      - path: main.m
-      - path: SAAppDelegate.h
-      - path: SAAppDelegate.m
-      - path: SARootViewController.h
-      - path: SARootViewController.m
-      - path: SAShared.h
-      - path: SAShared.m
-      - path: SABrainClient.m
+      - path: App
+      - path: Shared
     dependencies:
       - target: SolitaireAICapture
         embed: true
@@ -35,22 +29,20 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.solitaireai.app
         PRODUCT_NAME: SolitaireAI
-        INFOPLIST_FILE: App-Info.plist
-        HEADER_SEARCH_PATHS: $(SRCROOT)
-        USER_HEADER_SEARCH_PATHS: $(SRCROOT)
+        INFOPLIST_FILE: App/Resources/Info.plist
+        HEADER_SEARCH_PATHS: $(SRCROOT)/Shared
+        USER_HEADER_SEARCH_PATHS: $(SRCROOT)/Shared $(SRCROOT)/App
 
   SolitaireAICapture:
     type: app-extension
     platform: iOS
     sources:
-      - path: SASampleHandler.m
-      - path: SAShared.h
-      - path: SAShared.m
-      - path: SABrainClient.m
+      - path: Extension
+      - path: Shared
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.solitaireai.app.SolitaireAICapture
         PRODUCT_NAME: SolitaireAICapture
-        INFOPLIST_FILE: Extension-Info.plist
-        HEADER_SEARCH_PATHS: $(SRCROOT)
-        USER_HEADER_SEARCH_PATHS: $(SRCROOT)
+        INFOPLIST_FILE: Extension/Resources/Info.plist
+        HEADER_SEARCH_PATHS: $(SRCROOT)/Shared
+        USER_HEADER_SEARCH_PATHS: $(SRCROOT)/Shared
