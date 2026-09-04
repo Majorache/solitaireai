@@ -1,0 +1,56 @@
+name: SolitaireAI
+options:
+  bundleIdPrefix: com.solitaireai
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    MARKETING_VERSION: "2.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "5.0"
+    TARGETED_DEVICE_FAMILY: "1,2"
+    CLANG_ENABLE_OBJC_ARC: YES
+    ENABLE_BITCODE: NO
+    IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+
+targets:
+  SolitaireAI:
+    type: application
+    platform: iOS
+    sources:
+      - path: main.m
+      - path: SAAppDelegate.h
+      - path: SAAppDelegate.m
+      - path: SARootViewController.h
+      - path: SARootViewController.m
+      - path: SAShared.h
+      - path: SAShared.m
+      - path: SABrainClient.m
+    dependencies:
+      - target: SolitaireAICapture
+        embed: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.solitaireai.app
+        PRODUCT_NAME: SolitaireAI
+        INFOPLIST_FILE: App-Info.plist
+        HEADER_SEARCH_PATHS: $(SRCROOT)
+        USER_HEADER_SEARCH_PATHS: $(SRCROOT)
+
+  SolitaireAICapture:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: SASampleHandler.m
+      - path: SAShared.h
+      - path: SAShared.m
+      - path: SABrainClient.m
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.solitaireai.app.SolitaireAICapture
+        PRODUCT_NAME: SolitaireAICapture
+        INFOPLIST_FILE: Extension-Info.plist
+        HEADER_SEARCH_PATHS: $(SRCROOT)
+        USER_HEADER_SEARCH_PATHS: $(SRCROOT)
