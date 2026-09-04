@@ -13,8 +13,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Show files
+        run: ls -la
+
       - name: Install XcodeGen
-        run: brew install xcodegen
+        run: brew install xcodegen || sudo gem install xcodeproj
 
       - name: Generate Xcode project
         run: xcodegen generate
@@ -23,7 +26,7 @@ jobs:
         run: |
           xcodebuild \
             -project SolitaireAI.xcodeproj \
-            -scheme SolitaireAI \
+            -target SolitaireAI \
             -configuration Release \
             -sdk iphoneos \
             -derivedDataPath build \
