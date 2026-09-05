@@ -16,6 +16,7 @@ static NSString *const SABroadcastExtensionBundleID =
 @property (nonatomic, strong) RPSystemBroadcastPickerView *picker;
 @property (nonatomic, strong) NSDictionary *session;
 @property (nonatomic, assign) BOOL editingFields;
+@property (nonatomic, assign) NSInteger pendingSaves;
 @end
 
 @implementation SARootViewController
@@ -32,9 +33,11 @@ static NSString *const SABroadcastExtensionBundleID =
     @"dryRun": @(self.dryRunSwitch.isOn),
   };
   self.statusLabel.text = @"Saving…";
+  self.pendingSaves += 1;
   dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
     NSDictionary *session = SASyncPost(@{@"config": config});
     dispatch_async(dispatch_get_main_queue(), ^{
+      if (self.pendingSaves > 0) self.pendingSaves -= 1;
       if (session) {
         self.session = session;
         SALog(@"settings saved");
@@ -48,6 +51,12 @@ static NSString *const SABroadcastExtensionBundleID =
     });
   });
 }
+
+/// Switches save themselves, so a background refresh can never flip them back.
+- (void)switchChanged {
+  [self saveConfig];
+}
+
 
 #pragma mark - UI
 
@@ -91,6 +100,12 @@ static NSString *const SABroadcastExtensionBundleID =
 
   self.enabledSwitch = [UISwitch new];
   self.dryRunSwitch = [UISwitch new];
+  [self.enabledSwitch addTarget:self
+                         action:@selector(switchChanged)
+               forControlEvents:UIControlEventValueChanged];
+  [self.dryRunSwitch addTarget:self
+                        action:@selector(switchChanged)
+              forControlEvents:UIControlEventValueChanged];
 
   UIButton *save = [UIButton buttonWithType:UIButtonTypeSystem];
   [save setTitle:@"Save settings" forState:UIControlStateNormal];
@@ -212,7 +227,8 @@ static NSString *const SABroadcastExtensionBundleID =
 
 - (void)render {
   NSDictionary *config = self.session[@"config"];
-  if ([config isKindOfClass:NSDictionary.class] && !self.editingFields) {
+  BOOL busy = self.editingFields || self.pendingSaves > 0;
+  if ([config isKindOfClass:NSDictionary.class] && !busy) {
     self.serverField.text = [config[@"server"] isKindOfClass:NSString.class]
                                 ? config[@"server"]
                                 : @"";
