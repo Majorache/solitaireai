@@ -6,7 +6,7 @@
 #import <ReplayKit/ReplayKit.h>
 #import <CoreMedia/CoreMedia.h>
 #import <CoreVideo/CoreVideo.h>
-#import <ImageIO/ImageIO.h>
+#import <CoreImage/CoreImage.h>
 #import <MobileCoreServices/MobileCoreServices.h>
 #import "SAShared.h"
 
@@ -50,72 +50,35 @@
 
 #pragma mark - Frame handling
 
-/// Downscale a captured frame and encode it as PNG. Reports the factor needed
-/// to map coordinates in the sent image back to native screen pixels.
-- (NSData *)pngFromPixelBuffer:(CVPixelBufferRef)pixels
-                      maxWidth:(CGFloat)maxWidth
-                         scale:(CGFloat *)scaleOut {
-  CVPixelBufferLockBaseAddress(pixels, kCVPixelBufferLock_ReadOnly);
-  size_t width = CVPixelBufferGetWidth(pixels);
-  size_t height = CVPixelBufferGetHeight(pixels);
-  size_t rowBytes = CVPixelBufferGetBytesPerRow(pixels);
-  void *base = CVPixelBufferGetBaseAddress(pixels);
-  CGImageRef source = NULL;
-  if (base && width && height) {
-    CFDataRef copy = CFDataCreate(kCFAllocatorDefault, base, rowBytes * height);
-    if (copy) {
-      CGDataProviderRef provider = CGDataProviderCreateWithCFData(copy);
-      CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
-      if (provider && cs) {
-        source = CGImageCreate(width, height, 8, 32, rowBytes, cs,
-                               kCGBitmapByteOrder32Little |
-                                   kCGImageAlphaNoneSkipFirst,
-                               provider, NULL, NO, kCGRenderingIntentDefault);
-      }
-      if (cs) CGColorSpaceRelease(cs);
-      if (provider) CGDataProviderRelease(provider);
-      CFRelease(copy);
-    }
-  }
-  CVPixelBufferUnlockBaseAddress(pixels, kCVPixelBufferLock_ReadOnly);
-  if (!source) return nil;
+/// Encode a captured frame as JPEG. ReplayKit hands us bi-planar YUV buffers,
+/// which have no single base address, so we go through Core Image instead of
+/// poking at raw bytes. Reports the factor mapping sent-image coordinates back
+/// to native screen pixels.
+- (NSData *)encodedFrameFromPixelBuffer:(CVPixelBufferRef)pixels
+                               maxWidth:(CGFloat)maxWidth
+                                  scale:(CGFloat *)scaleOut {
+  static CIContext *context;
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{
+    context = [CIContext contextWithOptions:@{kCIContextUseSoftwareRenderer: @NO}];
+  });
 
-  CGImageRef out = source;
-  CGFloat sentWidth = (CGFloat)width;
-  if (maxWidth > 0 && sentWidth > maxWidth) {
-    size_t nw = (size_t)maxWidth;
-    size_t nh = (size_t)((CGFloat)height * (maxWidth / (CGFloat)width));
-    CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
-    CGContextRef ctx = CGBitmapContextCreate(NULL, nw, nh, 8, nw * 4, cs,
-                                             kCGImageAlphaPremultipliedFirst |
-                                                 kCGBitmapByteOrder32Little);
-    CGColorSpaceRelease(cs);
-    if (ctx) {
-      CGContextSetInterpolationQuality(ctx, kCGInterpolationHigh);
-      CGContextDrawImage(ctx, CGRectMake(0, 0, nw, nh), source);
-      CGImageRef scaled = CGBitmapContextCreateImage(ctx);
-      CGContextRelease(ctx);
-      if (scaled) {
-        CGImageRelease(source);
-        out = scaled;
-        sentWidth = (CGFloat)nw;
-      }
-    }
-  }
+  CIImage *image = [CIImage imageWithCVPixelBuffer:pixels];
+  if (!image) return nil;
 
-  if (scaleOut) *scaleOut = sentWidth > 0 ? (CGFloat)width / sentWidth : 1.0;
-
-  NSMutableData *png = [NSMutableData data];
-  CGImageDestinationRef dest = CGImageDestinationCreateWithData(
-      (__bridge CFMutableDataRef)png, CFSTR("public.png"), 1, NULL);
-  BOOL ok = NO;
-  if (dest) {
-    CGImageDestinationAddImage(dest, out, NULL);
-    ok = CGImageDestinationFinalize(dest);
-    CFRelease(dest);
+  CGFloat width = (CGFloat)CVPixelBufferGetWidth(pixels);
+  CGFloat factor = (maxWidth > 0 && width > maxWidth) ? maxWidth / width : 1.0;
+  if (factor < 1.0) {
+    image = [image imageByApplyingTransform:CGAffineTransformMakeScale(factor, factor)];
   }
-  CGImageRelease(out);
-  return ok ? png : nil;
+  if (scaleOut) *scaleOut = factor > 0 ? 1.0 / factor : 1.0;
+
+  CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
+  NSData *jpeg = [context JPEGRepresentationOfImage:image
+                                         colorSpace:cs
+                                            options:@{}];
+  CGColorSpaceRelease(cs);
+  return jpeg;
 }
 
 - (void)publishAction:(SAAction *)action scale:(CGFloat)scale {
@@ -169,7 +132,9 @@
   if (!pixels) return;
 
   CGFloat scale = 1.0;
-  NSData *png = [self pngFromPixelBuffer:pixels maxWidth:sendWidth scale:&scale];
+  NSData *png = [self encodedFrameFromPixelBuffer:pixels
+                                        maxWidth:sendWidth
+                                           scale:&scale];
   if (!png) {
     SALog(@"frame encode failed");
     return;

@@ -46,7 +46,7 @@
                              hint:(nullable NSString *)hint
                             error:(NSError **)error {
   NSMutableDictionary *body = [@{
-    @"image": [NSString stringWithFormat:@"data:image/png;base64,%@",
+    @"image": [NSString stringWithFormat:@"data:image/jpeg;base64,%@",
                                          [png base64EncodedStringWithOptions:0]],
     @"device": @"iPhone",
   } mutableCopy];
